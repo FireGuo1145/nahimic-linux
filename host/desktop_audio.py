@@ -90,7 +90,12 @@ class DesktopAudio:
             raise RuntimeError("Multiple original audio playback streams found")
         linked = renderers[0]["sink"] == physical["index"]
         if renderers[0]["sink"] not in (physical["index"], 4294967295):
-            raise RuntimeError("Effect playback is linked to an unexpected device")
+            # Pulse can briefly assign a newly-created stream to the default
+            # sink before honoring pacat's explicit target. Move it back and
+            # let the next tick confirm the route.
+            subprocess.run(["pactl", "move-sink-input", str(renderers[0]["index"]), self.target],
+                           check=False, capture_output=True, text=True, timeout=5)
+            return False if initializing else True
         active = enabled and linked and bool(applications)
         status = {"enabled": enabled, "active": active, "volume": round(max(actual[0]) / 65536 * 100),
                   "muted": actual[1], "applications": len(applications), "output": physical["description"]}

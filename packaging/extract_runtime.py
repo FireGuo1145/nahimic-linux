@@ -14,7 +14,8 @@ import zipfile
 def extract(swc, settings, output):
     output = Path(output)
     output.mkdir(parents=True, exist_ok=True)
-    manifest = json.loads(Path(__file__).with_name("runtime-sha256.json").read_text())
+    package_dir = Path(__file__).parent
+    manifest = json.loads((package_dir / "runtime-sha256.json").read_text())
     with tempfile.TemporaryDirectory(prefix="nahimic-runtime-", dir="/tmp") as temporary:
         work = Path(temporary)
         subprocess.run(["cabextract", "-q", "-d", str(work / "swc"), str(swc)], check=True)
@@ -31,6 +32,10 @@ def extract(swc, settings, output):
         for name, expected in manifest.items():
             group, relative = name.split("/", 1)
             source = work / ("swc" if group == "vendor" else "factory") / relative
+            if not source.exists():
+                override = package_dir / "device-config" / relative
+                if group == "factory" and override.is_file():
+                    source = override
             if hashlib.sha256(source.read_bytes()).hexdigest() != expected:
                 raise ValueError("Runtime checksum mismatch: " + name)
             target = output / name

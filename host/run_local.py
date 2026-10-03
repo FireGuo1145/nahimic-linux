@@ -143,7 +143,10 @@ def main():
                 raise TimeoutError('Native endpoint state initialization')
             time.sleep(0.05)
         state['volume_state'] = str(volume_path)
-        configuration = ['--use-existing-settings'] if args.reuse_session else ['--settings-root', wine_path(settings), '--device-id', device, '--profile-id', profile]
+        # Re-import the saved factory settings on every launch. The APO can
+        # leave AppIsReady unset after a crash or wineserver restart, so a
+        # session marked initialized cannot safely skip this recovery step.
+        configuration = ['--settings-root', wine_path(settings), '--device-id', device, '--profile-id', profile]
         host = start('host', ['wine', str(exe), wine_path(dll), '--wine-setup-compat', '--class', 'CHAIN', *configuration, '--pulse-target', args.target, '--volume-state', wine_path(volume_path), '--stdio'], stdin=subprocess.PIPE, stdout=subprocess.PIPE, bufsize=0)
         deadline = time.monotonic() + 45
         while 'stream_ready' not in (work / 'host.log').read_text(errors='replace'):

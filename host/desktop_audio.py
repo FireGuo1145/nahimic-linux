@@ -93,8 +93,9 @@ class DesktopAudio:
             # Pulse can briefly assign a newly-created stream to the default
             # sink before honoring pacat's explicit target. Move it back and
             # let the next tick confirm the route.
-            subprocess.run(["pactl", "move-sink-input", str(renderers[0]["index"]), self.target],
-                           check=False, capture_output=True, text=True, timeout=5)
+            subprocess.run(["pactl", "move-sink-input", str(renderers[0]["index"]),
+                            str(physical["index"])], check=False,
+                           capture_output=True, text=True, timeout=1)
             return False if initializing else True
         active = enabled and linked and bool(applications)
         status = {"enabled": enabled, "active": active, "volume": round(max(actual[0]) / 65536 * 100),

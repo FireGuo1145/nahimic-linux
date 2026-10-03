@@ -62,7 +62,7 @@ jobs:
           Priority: optional
           Architecture: amd64
           Maintainer: FireGuo1145
-          Depends: python3, wine, pipewire, pipewire-pulse, wireplumber (>= 0.5), libpulse0, systemd, hicolor-icon-theme
+          Depends: python3, python3-pyside6.qtcore, python3-pyside6.qtgui, python3-pyside6.qtwidgets, python3-pyside6.qtnetwork, wine, pipewire, pipewire-pulse, wireplumber (>= 0.5), libpulse0, systemd, hicolor-icon-theme
           Description: Nahimic speaker effects and equalizer
            Nahimic speaker effects and equalizer for supported Linux laptops.
           EOF

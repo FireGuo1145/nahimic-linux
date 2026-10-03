@@ -1,2 +1,2 @@
 #!/bin/sh
-exec /usr/bin/python /usr/lib/nahimic-linux/host/entry.py "$@"
+exec /usr/bin/python3 /usr/lib/nahimic-linux/host/entry.py "$@"

@@ -40,13 +40,16 @@ public:
         if(!apo_volume_snapshot(mapped_, &state))return fail("incoherent state snapshot");
         FILETIME now;GetSystemTimeAsFileTime(&now);
         uint64_t ticks=(uint64_t(now.dwHighDateTime)<<32)|now.dwLowDateTime;
-        if(state.magic!=APO_VOLUME_MAGIC || !state.valid || state.channels!=2 || state.muted>1 ||
-           state.target[255]!=0 || target_!=state.target ||
-           ticks<state.timestamp_100ns || ticks-state.timestamp_100ns>20000000ULL ||
-           std::isnan(state.master_db) || state.master_db==INFINITY ||
-           std::isnan(state.channel_db[0]) || state.channel_db[0]==INFINITY ||
-           std::isnan(state.channel_db[1]) || state.channel_db[1]==INFINITY)
-            return fail("invalid, stale, or mismatched native endpoint state");
+        bool invalid=state.magic!=APO_VOLUME_MAGIC || !state.valid || state.channels!=2 || state.muted>1 ||
+                     state.target[255]!=0 || target_!=state.target ||
+                     ticks<state.timestamp_100ns ||
+                     std::isnan(state.master_db) || state.master_db==INFINITY ||
+                     std::isnan(state.channel_db[0]) || state.channel_db[0]==INFINITY ||
+                     std::isnan(state.channel_db[1]) || state.channel_db[1]==INFINITY;
+        if(invalid){
+            if(previous_.valid){state=previous_;}
+            else return fail("invalid, stale, or mismatched native endpoint state");
+        }
         if(!previous_.valid || state.muted!=previous_.muted || state.master_db!=previous_.master_db ||
            state.channel_db[0]!=previous_.channel_db[0] || state.channel_db[1]!=previous_.channel_db[1]){
             std::fprintf(stderr,"native_volume mute=%u db=%.9g left=%.9g right=%.9g\n",

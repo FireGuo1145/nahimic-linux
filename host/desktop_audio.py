@@ -75,7 +75,19 @@ class DesktopAudio:
         if initializing and not renderers:
             return False
         if len(renderers) != 1:
-            raise RuntimeError("Original audio playback stream is missing")
+            # PipeWire may remove an idle renderer when no application is
+            # sending audio. Keep the service alive and report inactive;
+            # the renderer is recreated when playback resumes.
+            if not renderers:
+                status = {"enabled": enabled, "active": False,
+                          "volume": round(max(actual[0]) / 65536 * 100),
+                          "muted": actual[1], "applications": len(applications),
+                          "output": physical["description"]}
+                if status != self.last_status:
+                    atomic_json(self.work / "desktop-state.json", status)
+                    self.last_status = status
+                return True
+            raise RuntimeError("Multiple original audio playback streams found")
         linked = renderers[0]["sink"] == physical["index"]
         if renderers[0]["sink"] not in (physical["index"], 4294967295):
             raise RuntimeError("Effect playback is linked to an unexpected device")

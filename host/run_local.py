@@ -6,6 +6,7 @@ import json
 import os
 from pathlib import Path
 import signal
+import shutil
 import subprocess
 import tempfile
 import time
@@ -15,6 +16,17 @@ from prepare_settings import prepare
 def wine_path(path):
     return 'Z:' + str(path).replace('/', '\\')
 from desktop_audio import DesktopAudio, OutputUnavailable, supported_speaker
+
+
+def wineserver_executable():
+    configured = os.environ.get('NAHIMIC_WINESERVER')
+    candidates = [configured, shutil.which('wineserver'),
+                  '/usr/lib/x86_64-linux-gnu/wine/wineserver',
+                  '/usr/lib/wine/wineserver']
+    for candidate in candidates:
+        if candidate and Path(candidate).is_file() and os.access(candidate, os.X_OK):
+            return candidate
+    return None
 
 def linked_channels(listing, sink, target, monitor=None, render=True):
     """Require both directed stereo connections, including port identities."""
@@ -42,6 +54,7 @@ def main():
     parser.add_argument('--duration', type=float, help='Optional bounded local test, in seconds')
     parser.add_argument('--state-dir', type=Path, help='Owned persistent application runtime')
     args = parser.parse_args()
+    wineserver = wineserver_executable() if args.state_dir else None
     if args.state_dir:
         if args.reuse_session or args.profile:
             parser.error('Persistent runtime manages its own session and profile')
@@ -89,6 +102,15 @@ def main():
     if not device or not profile:
         raise ValueError('Original device or profile identifier missing')
     env = os.environ | {'WINEPREFIX': str(work / 'prefix'), 'WINEDEBUG': '-all', 'WINEDLLOVERRIDES': 'mscoree,mshtml='}
+    # apo_probe only configures a prefix that this application owns.
+    prefix = work / 'prefix'
+    prefix.mkdir(parents=True, exist_ok=True, mode=0o700)
+    owner_marker = prefix / '.nahimic-linux-owner'
+    if owner_marker.exists():
+        if owner_marker.read_text() != 'nahimic-linux-v1\n':
+            raise ValueError('Unexpected Wine prefix owner marker')
+    else:
+        owner_marker.write_text('nahimic-linux-v1\n')
     sink = 'nahimic_speakers' if args.state_dir else work.name.replace('-', '_')
     children, files = ({}, [])
     module = None
@@ -237,8 +259,14 @@ def main():
         for file in files:
             file.close()
         if args.state_dir:
-            subprocess.run(['wineserver', '-k'], env=env, check=True, timeout=10)
-            subprocess.run(['wineserver', '-w'], env=env, check=True, timeout=10)
+            if wineserver:
+                for action in ('-k', '-w'):
+                    try:
+                        subprocess.run([wineserver, action], env=env, check=True, timeout=10)
+                    except (OSError, subprocess.SubprocessError) as error:
+                        print(f'wineserver cleanup {action} failed: {error}', flush=True)
+            else:
+                print('wineserver cleanup skipped: executable not found', flush=True)
         state.update(ready=False, stopped=True, clean_shutdown=success, exit_codes={name: child.returncode for name, child in children.items()})
         save()
         print(f'Stopped; evidence: {state_path}', flush=True)

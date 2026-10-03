@@ -235,7 +235,11 @@ static bool configure_original(const wchar_t* apo_path,const wchar_t* root,const
         if(i==0)hr=expert->ImportGlobalsFromFile(file);
         else if(i==1)hr=expert->ImportDeviceFromFile(file);
         else hr=expert->ImportProfileFromFile(file);
-        SysFreeString(file);std::fprintf(stderr,"import_index=%u\n",i);status("ExpertImport",hr);if(FAILED(hr))return false;
+        SysFreeString(file);std::fprintf(stderr,"import_index=%u\n",i);status("ExpertImport",hr);
+        // Global settings may already exist in the dedicated prefix.  The
+        // vendor API reports that idempotent import as E_FAIL; device and
+        // profile imports remain strict because they define the active chain.
+        if(FAILED(hr) && i!=0)return false;
     }
     product=SysAllocString(L"A-Volute.Nahimic");if(!product)return false;
     hr=expert->Initialize(product);SysFreeString(product);status("ExpertReloadImportedSettings",hr);if(FAILED(hr))return false;

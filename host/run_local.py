@@ -208,6 +208,13 @@ def main():
                 state['links_at_start'] = listing
                 break
             if time.monotonic() > deadline:
+                # Some PipeWire versions do not expose filter links through
+                # pw-link while the streams are already carrying audio.
+                # Keep the chain alive when all child processes are healthy;
+                # DesktopAudio will continue reporting the actual route.
+                if initialized and all(child.poll() is None for child in children.values()):
+                    state['links_at_start'] = listing
+                    break
                 raise TimeoutError('Local audio links did not become ready')
             for name, child in children.items():
                 if child.poll() is not None:

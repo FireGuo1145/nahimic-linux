@@ -25,7 +25,7 @@ class OutputUnavailable(RuntimeError):
 
 
 def supported_speaker(sink):
-    return ("hda:14f11f87,1d05e022," in sink.get("properties", {}).get("alsa.components", "").lower()
+    return ("hda:10ec0256,1d05e004," in sink.get("properties", {}).get("alsa.components", "").lower()
             and sink.get("active_port") == "[Out] Speaker")
 
 

@@ -63,7 +63,7 @@ def main():
         raise OutputUnavailable('The configured speaker output is unavailable')
     target = matches[0]
     if not supported_speaker(target):
-        raise RuntimeError('This launcher currently verifies only the original 1D05E022 speaker endpoint')
+        raise RuntimeError('This launcher currently verifies only the local 1D05E004 speaker endpoint')
     dll_sha256 = hashlib.sha256(dll.read_bytes()).hexdigest()
     if args.reuse_session:
         previous_path = args.reuse_session.resolve(strict=True)
@@ -83,7 +83,7 @@ def main():
         if settings.exists():
             settings.rename(work / ('settings-previous-' + str(time.time_ns())))
         prepare(original, settings)
-    device = ET.parse(settings / 'Devices' / '1D05E022_Speakers.nsx').findtext('Data/ID/Value')
+    device = ET.parse(settings / 'Devices' / '1D05E004_InternalSpeakers.nsx').findtext('Data/ID/Value')
     profile_name = args.profile or 'Music'
     profile = ET.parse(settings / 'AudioProfiles' / f'{profile_name}.nsx').findtext('Data/ID/Value')
     if not device or not profile:

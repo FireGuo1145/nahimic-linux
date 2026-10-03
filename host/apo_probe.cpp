@@ -229,7 +229,7 @@ static bool configure_original(const wchar_t* apo_path,const wchar_t* root,const
     BSTR product=SysAllocString(L"A-Volute.Nahimic");if(!product)return false;
     hr=expert->Setup(product);SysFreeString(product);status("ExpertSetup",hr);if(FAILED(hr))return false;
     if(!root)return true;
-    const wchar_t* files[]={L"Global.nsx",L"Devices\\1D05E022_Speakers.nsx",L"AudioProfiles\\Music.nsx",L"AudioProfiles\\Movie.nsx",L"AudioProfiles\\Gaming.nsx",L"AudioProfiles\\Communication.nsx"};
+    const wchar_t* files[]={L"Global.nsx",L"Devices\\1D05E004_InternalSpeakers.nsx",L"AudioProfiles\\Music.nsx",L"AudioProfiles\\Movie.nsx",L"AudioProfiles\\Gaming.nsx",L"AudioProfiles\\Communication.nsx"};
     for(unsigned i: {1u,2u,3u,4u,5u,0u}){
         if(i==0 && !initialize_profile_links(apo_path,profile_id))return false;
         path=std::wstring(root)+L"\\"+files[i];BSTR file=SysAllocString(path.c_str());if(!file)return false;

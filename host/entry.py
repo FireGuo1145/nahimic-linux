@@ -12,15 +12,27 @@ from desktop_audio import atomic_json, pulse, supported_speaker
 ROOT = Path(__file__).resolve().parents[1]
 DATA = Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local/share")) / "nahimic-linux"
 RUNTIME = DATA / "runtime"
-SHARE = Path("/usr/share/nahimic-linux")
+SHARE = Path(os.environ.get("NAHIMIC_SHARE", "/usr/share/nahimic-linux"))
+# Allow the checked-out, locally adapted tree to run before system installation.
+if not SHARE.is_dir() and (ROOT / "local-runtime").is_dir():
+    SHARE = ROOT / "local-runtime"
 MARKER = "nahimic-linux-v1\n"
 
 
-def detect():
+def list_targets():
+    sinks = json.loads(pulse("--format=json", "list", "sinks"))
+    return [s for s in sinks if supported_speaker(s)]
+
+
+def detect(target=None):
     sinks = json.loads(pulse("--format=json", "list", "sinks"))
     matches = [s for s in sinks if supported_speaker(s)]
+    if target is not None:
+        matches = [s for s in matches if s["name"] == target]
     if len(matches) != 1:
-        raise RuntimeError("未找到受支持的内置扬声器（1D05E022）。请选择扬声器输出后重试。")
+        if target:
+            raise RuntimeError(f"未找到可用的指定扬声器：{target}")
+        raise RuntimeError("未找到受支持的内置扬声器（1D05E004）。请选择扬声器输出后重试。")
     return matches[0]["name"]
 
 
@@ -32,8 +44,8 @@ def marker(path):
         path.write_text(MARKER)
 
 
-def initialize():
-    target = detect()
+def initialize(target=None):
+    target = detect(target)
     DATA.mkdir(parents=True, exist_ok=True)
     if (RUNTIME / "prefix").exists() and any((RUNTIME / "prefix").iterdir()) and not (RUNTIME / "prefix/.nahimic-linux-owner").exists():
         raise RuntimeError("Existing Wine prefix has no Nahimic owner marker")
@@ -68,8 +80,8 @@ def migrate_local():
     print("Previous local installation retained:", backup)
 
 
-def activate():
-    initialize()
+def activate(target=None):
+    initialize(target)
     migrate_local()
     systemctl("daemon-reload")
     first = not (DATA / "activated").exists()
@@ -81,9 +93,11 @@ def activate():
         systemctl("restart", "nahimic.service")
 
 
-def serve():
+def serve(target_override=None):
     installation = DATA / "installation.json"
-    target = json.loads(installation.read_text())["target"] if installation.exists() else initialize()
+    target = (target_override or json.loads(installation.read_text())["target"]
+              if installation.exists() else initialize(target_override))
+    detect(target)
     session_path = RUNTIME / "session.json"
     if session_path.exists():
         session = json.loads(session_path.read_text())
@@ -127,24 +141,29 @@ def serve():
 
 def main():
     parser = argparse.ArgumentParser(description="Nahimic speaker effects")
+    parser.add_argument("--target", help="固定使用的扬声器 PipeWire 节点名")
+    parser.add_argument("--list-targets", action="store_true", help="列出可用的内置扬声器节点")
     modes = parser.add_mutually_exclusive_group()
     for name in ("service", "activate", "autostart", "status"):
         modes.add_argument("--" + name, action="store_true")
     args = parser.parse_args()
-    if args.status:
+    if args.list_targets:
+        for sink in list_targets():
+            print(sink["name"])
+    elif args.status:
         sys.path.insert(0, str(ROOT / "app"))
         from backend import Backend
         print(json.dumps(Backend().status(), ensure_ascii=False, indent=2))
     elif args.service:
-        serve()
+        serve(args.target)
     elif args.activate:
-        activate()
+        activate(args.target)
     elif args.autostart:
         if not (DATA / "activated").exists():
             activate()
     else:
         if not (DATA / "activated").exists():
-            activate()
+            activate(args.target)
         os.execv(sys.executable, [sys.executable, str(ROOT / "app/main.py")])
 
 

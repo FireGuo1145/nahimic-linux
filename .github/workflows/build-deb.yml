@@ -1,0 +1,75 @@
+name: Build Debian package
+
+on:
+  push:
+
+permissions:
+  contents: read
+
+jobs:
+  deb:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            dpkg-dev \
+            g++-mingw-w64-x86-64 \
+            cabextract \
+            curl \
+            libpulse-dev \
+            make \
+            pkg-config
+
+      - name: Build binaries
+        run: make
+
+      - name: Download and verify Nahimic runtime
+        run: |
+          set -eu
+          curl --fail --location --retry 3 \
+            'https://catalog.s.download.windowsupdate.com/d/msdownload/update/driver/drvs/2025/06/5038101c-bafc-45b6-b338-d086f6877059_8ba41f8fd185d004f674891c937eb6b815acb443.cab' \
+            --output /tmp/nahimic-apo4-4.14.cab
+          curl --fail --location --retry 3 \
+            'https://nahimic.helprace.com/resources/SdHjE1CwBkqCwL1qTng83XvmSgyUM3WU8bA3F21ZCfca-wMam1lcLqCrQgAIHtE1DyfpwdnFPjQ5DuRdOgpXLg%7E%7E/GenericNahimicRestoreTool.exe' \
+            --output /tmp/nahimic-runtime-settings.exe
+          python3 packaging/extract_runtime.py \
+            /tmp/nahimic-apo4-4.14.cab \
+            /tmp/nahimic-runtime-settings.exe \
+            /tmp/nahimic-runtime
+
+      - name: Build .deb
+        env:
+          GH_RUN_NUMBER: ${{ github.run_number }}
+        run: |
+          set -eu
+          package_root="$PWD/deb-root"
+          package_name="nahimic-linux"
+          package_version="0.3.0.${GH_RUN_NUMBER}"
+          rm -rf "$package_root"
+          make DESTDIR="$package_root" install
+          install -d "$package_root/usr/share/nahimic-linux"
+          cp -a /tmp/nahimic-runtime/vendor /tmp/nahimic-runtime/factory "$package_root/usr/share/nahimic-linux/"
+          install -d "$package_root/DEBIAN"
+          cat > "$package_root/DEBIAN/control" <<EOF
+          Package: ${package_name}
+          Version: ${package_version}
+          Section: sound
+          Priority: optional
+          Architecture: amd64
+          Maintainer: FireGuo1145
+          Depends: python3, wine, pipewire, pipewire-pulse, wireplumber (>= 0.5), libpulse0, systemd, hicolor-icon-theme
+          Description: Nahimic speaker effects and equalizer
+           Nahimic speaker effects and equalizer for supported Linux laptops.
+          EOF
+          dpkg-deb --root-owner-group --build "$package_root" "${package_name}_${package_version}_amd64.deb"
+
+      - name: Upload Debian package
+        uses: actions/upload-artifact@v4
+        with:
+          name: nahimic-linux-deb
+          path: nahimic-linux_*.deb
